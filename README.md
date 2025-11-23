@@ -59,6 +59,27 @@ python examples.py
 
 This will run through comprehensive examples showing all features.
 
+### Run the Tests
+
+```bash
+# Run all unit tests
+python -m unittest test_topql -v
+
+# Or use the Makefile
+make test
+
+# Run with coverage
+make coverage
+```
+
+TopQL includes 59 comprehensive unit tests covering:
+- Tokenizer functionality
+- Parser correctness
+- Storage engine operations
+- Query execution
+- All example queries
+- Error handling
+
 ## How It Works
 
 TopQL processes SQL queries in four main stages:
@@ -204,15 +225,25 @@ DELETE FROM products WHERE in_stock = FALSE
 
 ```
 topQL/
-├── topql.py          # Main database implementation
-│   ├── Tokenizer     # Lexical analysis
-│   ├── Parser        # Syntax analysis
-│   ├── Table         # Table data structure
-│   ├── StorageEngine # Table management
-│   ├── QueryExecutor # Query execution
-│   └── Database      # Main interface
-├── examples.py       # Comprehensive examples
-└── README.md         # This file
+├── topql.py              # Main database implementation
+│   ├── Tokenizer         # Lexical analysis
+│   ├── Parser            # Syntax analysis
+│   ├── Table             # Table data structure
+│   ├── StorageEngine     # Table management
+│   ├── QueryExecutor     # Query execution
+│   └── Database          # Main interface
+├── examples.py           # Comprehensive examples
+├── test_topql.py         # Unit tests (59 tests)
+├── requirements-dev.txt  # Development dependencies
+├── Makefile              # Development commands
+├── pyproject.toml        # Tool configurations
+├── .flake8               # Flake8 linting config
+├── .pylintrc             # Pylint config
+├── .github/
+│   └── workflows/
+│       └── ci.yml        # GitHub Actions CI/CD
+├── .gitignore            # Git ignore patterns
+└── README.md             # This file
 ```
 
 ## Learning Path
@@ -259,10 +290,68 @@ This is a learning database with intentional limitations:
 
 These limitations make the code simpler to understand while still demonstrating the core concepts of SQL query processing.
 
+## Development
+
+### Setting Up Development Environment
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Or use make
+make install
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage report
+make coverage
+
+# Run linting
+make lint
+
+# Format code
+make format
+
+# Run all CI checks locally
+make ci
+```
+
+### CI/CD Pipeline
+
+TopQL uses GitHub Actions for continuous integration:
+
+- **Linting**: Code quality checks with flake8, pylint, black, and isort
+- **Testing**: Unit tests across Python 3.8, 3.9, 3.10, 3.11, and 3.12
+- **Coverage**: Code coverage reporting
+- **Integration Tests**: End-to-end testing of all SQL operations
+
+The pipeline runs automatically on:
+- All pushes to `main`, `master`, or `claude/**` branches
+- All pull requests to `main` or `master`
+
+### Available Make Commands
+
+```bash
+make help           # Show all available commands
+make test           # Run unit tests
+make coverage       # Generate coverage report
+make lint           # Run all linters
+make format         # Auto-format code
+make clean          # Remove generated files
+make run            # Run example queries
+make ci             # Run all CI checks locally
+```
+
 ## Requirements
 
 - Python 3.7+
-- No external dependencies (uses only standard library)
+- No external dependencies for core functionality (uses only standard library)
+- Development dependencies in `requirements-dev.txt` for testing and linting
 
 ## License
 

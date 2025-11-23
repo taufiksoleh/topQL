@@ -13,6 +13,19 @@ venv/
 env/
 ENV/
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+coverage.xml
+*.coveragerc
+
+# Type checking
+.mypy_cache/
+.pytype/
+
 # IDE
 .vscode/
 .idea/
