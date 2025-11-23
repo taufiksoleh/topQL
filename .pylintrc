@@ -1,0 +1,59 @@
+[MASTER]
+# Pylint configuration for TopQL
+
+# Use multiple processes to speed up Pylint
+jobs=1
+
+# Pickle collected data for later comparisons
+persistent=yes
+
+# Allow loading of arbitrary C extensions
+unsafe-load-any-extension=no
+
+[MESSAGES CONTROL]
+# Disable specific warnings
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    too-many-instance-attributes,
+    too-many-arguments,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    duplicate-code,
+    fixme,
+    invalid-name
+
+[FORMAT]
+# Maximum line length
+max-line-length=100
+
+# Maximum number of characters on a single line
+single-line-if-stmt=no
+
+[BASIC]
+# Good variable names
+good-names=i,j,k,db,id,sql,op,_
+
+# Include a hint for the correct naming format
+include-naming-hint=yes
+
+[DESIGN]
+# Maximum number of arguments for function / method
+max-args=7
+
+# Maximum number of locals for function / method body
+max-locals=20
+
+# Maximum number of branch for function / method body
+max-branches=15
+
+[SIMILARITIES]
+# Minimum lines number of a similarity
+min-similarity-lines=10
+
+[TYPECHECK]
+# List of class names for which member attributes should not be checked
+ignored-classes=optparse.Values,thread._local,_thread._local
