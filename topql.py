@@ -10,10 +10,10 @@ Components:
 4. Executor: Executes parsed queries against the storage engine
 """
 
-import re
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 from enum import Enum
+from btree_index import BTreeIndex
 
 
 # ============================================================================
@@ -520,25 +520,29 @@ class Table:
         self.columns = columns
         self.column_names = [col["name"] for col in columns]
         self.rows: List[Dict[str, Any]] = []
+        self.indexes: Dict[str, BTreeIndex] = {col: BTreeIndex() for col in self.column_names}
+        self._rows_by_id: Dict[int, Dict[str, Any]] = {}
+        self._id_by_row: Dict[int, int] = {}
+        self._next_row_id: int = 1
 
     def insert(self, values: Dict[str, Any]):
-        """Insert a row into the table"""
-        # Validate all columns are present
+        row = values.copy()
         for col_name in self.column_names:
-            if col_name not in values:
+            if col_name not in row:
                 raise ValueError(f"Missing value for column: {col_name}")
-
-        # Validate no extra columns
-        for col_name in values:
+        for col_name in row:
             if col_name not in self.column_names:
                 raise ValueError(f"Unknown column: {col_name}")
-
-        self.rows.append(values.copy())
+        row_id = self._next_row_id
+        self._next_row_id += 1
+        self._rows_by_id[row_id] = row
+        self.rows.append(row)
+        self._id_by_row[id(row)] = row_id
+        for col_name in self.column_names:
+            self.indexes[col_name].insert(row[col_name], row_id)
 
     def select(self, columns: List[str], where_clause: Optional[WhereClause] = None,
                order_by: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Select rows from the table"""
-        # Filter rows based on WHERE clause
         filtered_rows = self.rows
         if where_clause:
             filtered_rows = self._filter_rows(where_clause)
@@ -564,49 +568,53 @@ class Table:
             return result
 
     def update(self, assignments: Dict[str, Any], where_clause: Optional[WhereClause] = None) -> int:
-        """Update rows in the table"""
         rows_to_update = self.rows if where_clause is None else self._filter_rows(where_clause)
-
-        count = 0
         for row in rows_to_update:
+            row_id = self._id_by_row.get(id(row))
             for col, value in assignments.items():
                 if col in row:
+                    old_value = row[col]
                     row[col] = value
-                    count += 1
-
+                    if row_id is not None:
+                        self.indexes[col].update(old_value, value, row_id)
         return len(rows_to_update)
 
     def delete(self, where_clause: Optional[WhereClause] = None) -> int:
-        """Delete rows from the table"""
         if where_clause is None:
             count = len(self.rows)
+            for row in self.rows:
+                row_id = self._id_by_row.get(id(row))
+                if row_id is not None:
+                    for col in self.column_names:
+                        self.indexes[col].remove(row[col], row_id)
+                    del self._rows_by_id[row_id]
+                    del self._id_by_row[id(row)]
             self.rows = []
             return count
-
         rows_to_delete = self._filter_rows(where_clause)
+        to_remove_ids = {id(r) for r in rows_to_delete}
         for row in rows_to_delete:
-            self.rows.remove(row)
-
+            row_id = self._id_by_row.get(id(row))
+            if row_id is not None:
+                for col in self.column_names:
+                    self.indexes[col].remove(row[col], row_id)
+                del self._rows_by_id[row_id]
+                del self._id_by_row[id(row)]
+        self.rows = [row for row in self.rows if id(row) not in to_remove_ids]
         return len(rows_to_delete)
 
-    def _filter_rows(self, where_clause: WhereClause) -> List[Dict[str, Any]]:
-        """Filter rows based on WHERE clause conditions"""
-        result = []
-
+    def _filter_rows_scan(self, where_clause: WhereClause) -> List[Dict[str, Any]]:
+        result: List[Dict[str, Any]] = []
         for row in self.rows:
-            # Evaluate each condition
             condition_results = []
             for condition in where_clause.conditions:
                 column = condition["column"]
                 operator = condition["operator"]
                 value = condition["value"]
-
                 if column not in row:
                     condition_results.append(False)
                     continue
-
                 row_value = row[column]
-
                 if operator == '=':
                     condition_results.append(row_value == value)
                 elif operator == '!=':
@@ -619,22 +627,40 @@ class Table:
                     condition_results.append(row_value <= value)
                 elif operator == '>=':
                     condition_results.append(row_value >= value)
-
-            # Combine conditions with logical operators
             if not condition_results:
                 continue
-
             final_result = condition_results[0]
             for i, logical_op in enumerate(where_clause.logical_operators):
                 if logical_op == 'AND':
                     final_result = final_result and condition_results[i + 1]
                 elif logical_op == 'OR':
                     final_result = final_result or condition_results[i + 1]
-
             if final_result:
                 result.append(row)
-
         return result
+
+    def _filter_rows(self, where_clause: WhereClause) -> List[Dict[str, Any]]:
+        if not where_clause.conditions:
+            return []
+        sets = []
+        for condition in where_clause.conditions:
+            column = condition["column"]
+            operator = condition["operator"]
+            value = condition["value"]
+            idx = self.indexes.get(column)
+            if idx is None:
+                return self._filter_rows_scan(where_clause)
+            sets.append(idx.query(operator, value))
+        if not sets:
+            return []
+        combined = sets[0]
+        for i, logical_op in enumerate(where_clause.logical_operators):
+            next_set = sets[i + 1]
+            if logical_op == 'AND':
+                combined = combined.intersection(next_set)
+            elif logical_op == 'OR':
+                combined = combined.union(next_set)
+        return [self._rows_by_id[s] for s in combined]
 
 
 class StorageEngine:
