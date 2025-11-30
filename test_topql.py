@@ -6,8 +6,8 @@ Comprehensive tests for all components: Tokenizer, Parser, Storage Engine, and E
 
 import unittest
 from topql import (
-    Database, Tokenizer, Parser, StorageEngine, QueryExecutor,
-    Token, TokenType, Table,
+    Database, Tokenizer, Parser, StorageEngine,
+    TokenType,
     CreateTableStatement, InsertStatement, SelectStatement,
     UpdateStatement, DeleteStatement, WhereClause
 )

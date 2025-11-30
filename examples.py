@@ -5,7 +5,6 @@ This file contains examples showing how TopQL works internally.
 """
 
 from topql import Database
-import json
 
 
 def print_section(title):
