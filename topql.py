@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from enum import Enum
 from binary_storage import BinaryStorage
 from btree_index import BTreeIndex
+from binary_storage import BinaryStorage
 
 
 # ============================================================================
