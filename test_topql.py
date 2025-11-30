@@ -9,8 +9,8 @@ import tempfile
 import shutil
 import os
 from topql import (
-    Database, Tokenizer, Parser, StorageEngine, QueryExecutor,
-    Token, TokenType, Table,
+    Database, Tokenizer, Parser, StorageEngine,
+    TokenType,
     CreateTableStatement, InsertStatement, SelectStatement,
     UpdateStatement, DeleteStatement, WhereClause
 )
