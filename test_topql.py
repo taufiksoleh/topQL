@@ -5,6 +5,9 @@ Comprehensive tests for all components: Tokenizer, Parser, Storage Engine, and E
 """
 
 import unittest
+import tempfile
+import shutil
+import os
 from topql import (
     Database, Tokenizer, Parser, StorageEngine, QueryExecutor,
     Token, TokenType, Table,
@@ -734,6 +737,55 @@ class TestErrorHandling(unittest.TestCase):
         # Should not raise error, just return no results
         result = self.db.execute("SELECT * FROM test WHERE unknown_column = 1")
         self.assertEqual(result["count"], 0)
+
+
+class TestBinaryStorage(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="topql_bin_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_save_and_autoload_select(self):
+        db = Database(data_dir=self.tmpdir)
+        db.execute("CREATE TABLE users (id INT, name VARCHAR(50), age INT, active BOOLEAN)")
+        db.execute("INSERT INTO users VALUES (1, 'Alice', 30, TRUE)")
+        db.execute("INSERT INTO users VALUES (2, 'Bob', 25, TRUE)")
+        self.assertTrue(os.path.exists(os.path.join(self.tmpdir, "users.bin")))
+
+        db2 = Database(data_dir=self.tmpdir)
+        res = db2.execute("SELECT * FROM users WHERE age >= 30")
+        self.assertEqual(res["count"], 1)
+        self.assertEqual(res["rows"][0]["name"], "Alice")
+
+    def test_update_delete_persist(self):
+        db = Database(data_dir=self.tmpdir)
+        db.execute("CREATE TABLE test (id INT, v INT)")
+        db.execute("INSERT INTO test VALUES (1, 10)")
+        db.execute("INSERT INTO test VALUES (2, 20)")
+        db.execute("INSERT INTO test VALUES (3, 30)")
+        db.execute("UPDATE test SET v = 99 WHERE id = 2")
+        db.execute("DELETE FROM test WHERE id = 1")
+
+        db2 = Database(data_dir=self.tmpdir)
+        res_all = db2.execute("SELECT * FROM test")
+        self.assertEqual(res_all["count"], 2)
+        res_99 = db2.execute("SELECT * FROM test WHERE v = 99")
+        self.assertEqual(res_99["count"], 1)
+        res_del = db2.execute("SELECT * FROM test WHERE id = 1")
+        self.assertEqual(res_del["count"], 0)
+
+    def test_enable_binary_storage_runtime(self):
+        db = Database()
+        db.execute("CREATE TABLE log (id INT, msg VARCHAR(50))")
+        db.execute("INSERT INTO log VALUES (1, 'a')")
+        db.enable_binary_storage(self.tmpdir)
+        self.assertTrue(os.path.exists(os.path.join(self.tmpdir, "log.bin")))
+
+        db2 = Database(data_dir=self.tmpdir)
+        res = db2.execute("SELECT * FROM log WHERE id = 1")
+        self.assertEqual(res["count"], 1)
 
 
 if __name__ == "__main__":
