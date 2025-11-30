@@ -13,6 +13,7 @@ Components:
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 from enum import Enum
+from binary_storage import BinaryStorage
 from btree_index import BTreeIndex
 
 
@@ -666,8 +667,9 @@ class Table:
 class StorageEngine:
     """Manages all tables in the database"""
 
-    def __init__(self):
+    def __init__(self, data_dir: Optional[str] = None):
         self.tables: Dict[str, Table] = {}
+        self.binary: Optional[BinaryStorage] = BinaryStorage(data_dir) if data_dir else None
 
     def create_table(self, name: str, columns: List[Dict[str, str]]):
         """Create a new table"""
@@ -675,11 +677,16 @@ class StorageEngine:
             raise ValueError(f"Table '{name}' already exists")
 
         self.tables[name] = Table(name, columns)
+        if self.binary:
+            self.binary.save_table(self.tables[name])
 
     def get_table(self, name: str) -> Table:
         """Get a table by name"""
         if name not in self.tables:
-            raise ValueError(f"Table '{name}' does not exist")
+            if self.binary:
+                self.load_table(name)
+            if name not in self.tables:
+                raise ValueError(f"Table '{name}' does not exist")
         return self.tables[name]
 
     def drop_table(self, name: str):
@@ -687,10 +694,35 @@ class StorageEngine:
         if name not in self.tables:
             raise ValueError(f"Table '{name}' does not exist")
         del self.tables[name]
+        if self.binary:
+            path = self.binary._path(name)
+            try:
+                import os
+                if os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
 
     def list_tables(self) -> List[str]:
         """List all table names"""
         return list(self.tables.keys())
+
+    def save_table(self, name: str):
+        if self.binary and name in self.tables:
+            self.binary.save_table(self.tables[name])
+
+    def load_table(self, name: str):
+        if self.binary:
+            try:
+                columns, rows = self.binary.load_table(name)
+            except Exception:
+                return
+            if name not in self.tables:
+                self.tables[name] = Table(name, columns)
+            table = self.tables[name]
+            table.rows = []
+            for row in rows:
+                table.insert(row)
 
 
 # ============================================================================
@@ -738,6 +770,8 @@ class QueryExecutor:
             row = dict(zip(table.column_names, stmt.values))
 
         table.insert(row)
+        if hasattr(self.storage, "save_table"):
+            self.storage.save_table(stmt.table_name)
         return {"message": "1 row inserted", "rows_affected": 1}
 
     def _execute_select(self, stmt: SelectStatement):
@@ -750,12 +784,16 @@ class QueryExecutor:
         """Execute UPDATE"""
         table = self.storage.get_table(stmt.table_name)
         count = table.update(stmt.assignments, stmt.where_clause)
+        if hasattr(self.storage, "save_table"):
+            self.storage.save_table(stmt.table_name)
         return {"message": f"{count} row(s) updated", "rows_affected": count}
 
     def _execute_delete(self, stmt: DeleteStatement):
         """Execute DELETE"""
         table = self.storage.get_table(stmt.table_name)
         count = table.delete(stmt.where_clause)
+        if hasattr(self.storage, "save_table"):
+            self.storage.save_table(stmt.table_name)
         return {"message": f"{count} row(s) deleted", "rows_affected": count}
 
 
@@ -766,8 +804,8 @@ class QueryExecutor:
 class Database:
     """Main database interface - combines all components"""
 
-    def __init__(self):
-        self.storage = StorageEngine()
+    def __init__(self, data_dir: Optional[str] = None):
+        self.storage = StorageEngine(data_dir)
         self.executor = QueryExecutor(self.storage)
 
     def execute(self, sql: str):
@@ -804,3 +842,8 @@ class Database:
             "columns": table.columns,
             "row_count": len(table.rows)
         }
+
+    def enable_binary_storage(self, data_dir: str):
+        self.storage.binary = BinaryStorage(data_dir)
+        for name in self.storage.list_tables():
+            self.storage.save_table(name)
